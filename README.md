@@ -17,15 +17,35 @@ gym env ──► (frame, action) dataset ──┬──► IDM: frames → act
 
 ## Results
 
-_To fill in after training on a Colab/Kaggle GPU (`runs/*_eval.json`)._
+One run of `colab.ipynb` with its defaults on a single T4: 500 random-policy episodes, held-out episodes for every number below. Raw outputs are in [`results/`](results/).
+
+Each world model gets 4 real frames as context, then imagines 12 frames on its own; numbers are over 64 held-out windows.
 
 | | true action labels | IDM pseudo-labels |
 |---|---|---|
-| IDM accuracy on held-out episodes | — | — |
-| Tokenizer reconstruction PSNR (upper bound) | — | — |
-| World model PSNR, mean over 12 imagined steps | — | — |
-| Copy-last-frame baseline PSNR | — | — |
-| Action consistency (IDM reads imagined video) | — | — |
+| IDM accuracy on held-out episodes (chance 25%) | 65.9% | (same IDM) |
+| Tokenizer reconstruction PSNR (ceiling for the world model) | 31.1 dB | 31.1 dB |
+| World model PSNR, mean over 12 imagined steps | 30.9 dB | 30.4 dB |
+| World model PSNR, imagined step 1 → step 12 | 30.8 → 30.7 dB | 30.9 → 29.8 dB |
+| Copy-last-frame baseline PSNR, step 1 → step 12 | 42.7 → 31.6 dB | 42.7 → 31.6 dB |
+| Foreground PSNR: world model / copy-last-frame / tokenizer ceiling | 10.1 / 8.9 / 10.4 dB | 9.7 / 8.9 / 10.4 dB |
+| Action consistency: IDM on imagined video vs on real video | 65.6% vs 67.0% | 70.2% vs 67.0% |
+
+**What the numbers say**
+
+- **The world model gets within 0.3 dB of its ceiling, and its error does not grow over 12 steps** with true labels (30.8 → 30.7 dB). On whole-frame PSNR it does not beat copying the last frame (30.9 vs 35.9 dB): the background is static, so copying it is almost free, while any frame decoded from tokens is capped at the tokenizer's 31.1 dB. That ceiling, not the dynamics, limits the whole-frame score; a better tokenizer is the next lever.
+- **On the pixels that move, it beats the baseline** (10.1 vs 8.9 dB foreground PSNR), close to the tokenizer ceiling of 10.4 dB.
+- **It follows its actions.** The IDM recovers the conditioning actions from imagined video almost as well as from real video (65.6% vs 67.0%).
+- **IDM pseudo-labels cost accuracy over the horizon.** The pseudo-label model starts level with the true-label one but drifts to 29.8 dB by step 12. Its action consistency (70.2%) is higher than on real video; that is expected, not good news, since the model learned the IDM's own reading of the actions. This metric flatters a model trained on the same IDM.
+- **The IDM's errors are the game's ambiguity.** LEFT and RIGHT are recovered 82% and 88% of the time. NOOP (34%) and FIRE (57%) are the hard ones: FIRE does nothing while a ball is in play, and LEFT or RIGHT does nothing when the paddle is already against that wall, so all of these can produce the same frames as NOOP.
+
+**Imagined rollouts** (left: real future, right: imagined from the same 4 frames and the same actions)
+
+![rollouts](results/dynamics_rollouts.gif)
+
+**Counterfactuals** (columns: real, then NOOP, FIRE, RIGHT, LEFT held for all 12 steps from the same start). Holding LEFT drives the paddle to the left wall and RIGHT to the right wall. In the bottom row the ball has just been lost: only the FIRE column serves a new ball, as in the real game.
+
+![counterfactuals](results/dynamics_counterfactual.gif)
 
 ## How the evaluation works
 

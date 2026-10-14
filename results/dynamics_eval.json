@@ -1,0 +1,72 @@
+{
+  "dynamics": "dynamics",
+  "windows": 64,
+  "context_frames": 4,
+  "temperature": 1.0,
+  "psnr_db_per_step": {
+    "world_model": [
+      30.83,
+      30.95,
+      30.87,
+      30.9,
+      30.92,
+      30.83,
+      30.85,
+      30.87,
+      30.94,
+      31.0,
+      30.86,
+      30.74
+    ],
+    "copy_last_frame_baseline": [
+      42.74,
+      39.78,
+      39.62,
+      39.93,
+      36.02,
+      35.7,
+      33.44,
+      33.37,
+      33.11,
+      32.99,
+      31.95,
+      31.63
+    ],
+    "tokenizer_upper_bound": [
+      31.05,
+      31.18,
+      31.12,
+      31.15,
+      31.11,
+      31.03,
+      31.16,
+      31.14,
+      31.18,
+      31.19,
+      31.18,
+      31.21
+    ]
+  },
+  "psnr_db_mean": {
+    "world_model": 30.879858016967773,
+    "copy_last_frame_baseline": 35.856353759765625,
+    "tokenizer_upper_bound": 31.142196655273438
+  },
+  "foreground_psnr_db_mean": {
+    "world_model": 10.066794395446777,
+    "copy_last_frame_baseline": 8.88961124420166,
+    "tokenizer_upper_bound": 10.408571243286133
+  },
+  "action_consistency": {
+    "idm_on_imagined_video": 0.65625,
+    "idm_on_real_video": 0.6704545617103577,
+    "chance": 0.25
+  },
+  "counterfactual_columns": [
+    "real",
+    "NOOP",
+    "FIRE",
+    "RIGHT",
+    "LEFT"
+  ]
+}

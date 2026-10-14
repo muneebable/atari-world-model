@@ -111,13 +111,18 @@ def evaluate(model, split, background, dev, n=1024, seed=0):
 @torch.no_grad()
 def save_reconstructions(model, split, path, n=8, scale=4):
     """PNG with the n val frames that moved most (top row) above their reconstructions (bottom row)."""
-    frames = np.asarray(split.frames)
-    motion = np.abs(np.diff(frames.astype(np.int16), axis=0)).sum((1, 2, 3))
-    picks = np.sort(np.argsort(motion)[-n:] + 1)
-    real = frames[picks]
+    real = split.frames[most_moving_frames(split.frames, split.ep, n)]
     recon = to_uint8(model.decode(model.encode(to_float(real, next(model.parameters()).device))))
     grid = np.concatenate([np.concatenate(list(real), 1), np.concatenate(list(recon), 1)], 0)
     Image.fromarray(grid.repeat(scale, 0).repeat(scale, 1)).save(path)
+
+
+def most_moving_frames(frames, ep, n):
+    """Sorted indices of the n frames that differ most from the previous frame of the same episode."""
+    motion = np.abs(np.diff(np.asarray(frames, dtype=np.int16), axis=0)).sum((1, 2, 3))
+    # NOTE: an episode boundary is the biggest jump of all; without this every pick is an identical reset frame.
+    motion[ep[1:] != ep[:-1]] = -1
+    return np.sort(np.argsort(motion)[-n:] + 1)
 
 
 def train(a):
