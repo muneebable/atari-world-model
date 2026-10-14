@@ -39,6 +39,28 @@ def psnr(a, b):
     return 10 * torch.log10(1.0 / mse.clamp_min(1e-10))
 
 
+# NOTE: per-channel difference (in [0, 1]) from the static background that counts as a moving object.
+FOREGROUND_THRESHOLD = 0.1
+
+
+def static_background(frames, dev, n=2000, seed=0):
+    """Median of a random sample of uint8 frames: the parts of the scene that rarely change. (3, H, W)."""
+    i = np.sort(np.random.default_rng(seed).choice(len(frames), min(n, len(frames)), replace=False))
+    return to_float(frames[i], dev).median(0).values
+
+
+def foreground_mask(x, background):
+    """(..., 1, H, W) bool: pixels that differ from the background, e.g. the ball, paddle and broken bricks."""
+    return ((x - background).abs() > FOREGROUND_THRESHOLD).any(-3, keepdim=True)
+
+
+def masked_psnr(a, b, mask):
+    """PSNR in dB over the masked pixels only, pooled over everything. Whole-frame PSNR is dominated by the
+    static background, so a model that drops every moving object still scores well on it."""
+    mse = (((a - b) ** 2) * mask).sum() / (mask.sum() * a.shape[-3]).clamp_min(1)
+    return float(10 * torch.log10(1.0 / mse.clamp_min(1e-10)))
+
+
 def save(path, model, cfg):
     torch.save({"cfg": cfg, "state": model.state_dict()}, path)
 

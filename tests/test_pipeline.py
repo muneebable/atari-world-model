@@ -73,3 +73,4 @@ def test_pipeline(tmp_path):
     report = json.load(open(f"{r}/dynamics_eval.json"))
     assert len(report["psnr_db_per_step"]["world_model"]) == 3
     assert (tmp_path / "runs" / "dynamics_counterfactual.gif").exists()
+    assert (tmp_path / "runs" / "tokenizer_recon.png").exists()

@@ -30,6 +30,7 @@ _To fill in after training on a Colab/Kaggle GPU (`runs/*_eval.json`)._
 ## How the evaluation works
 
 - **PSNR against two references.** Copying the last real frame is the baseline a world model has to beat. Decoding the ground-truth tokens is the ceiling a token-based model can reach. Scores are reported per imagined step, so error accumulation over the horizon is visible.
+- **Foreground PSNR.** Whole-frame PSNR is dominated by the static background, so a model that drops every moving object still scores well on it. Foreground PSNR is measured only on pixels that differ from the static background (the ball, paddle and broken bricks), which is where the dynamics are.
 - **Action consistency.** The IDM reads the imagined video and we check whether it recovers the actions the world model was conditioned on, compared with the IDM on real video. A model that ignores its actions can still look plausible; this metric catches that.
 - **Counterfactuals.** From the same real start, each column holds one action down for the whole rollout (`*_counterfactual.gif`). LEFT and RIGHT should move the paddle in opposite directions.
 - **Pseudo-label experiment.** The world model is trained twice: once on true actions and once on IDM-inferred actions. The gap shows how much a world model loses when its labels come from an IDM instead of the game, which is the question that matters when the training data is unlabelled video.
@@ -38,6 +39,7 @@ _To fill in after training on a Colab/Kaggle GPU (`runs/*_eval.json`)._
 
 - **Sticky actions off** (`repeat_action_probability=0`). With the ALE default of 0.25, the logged action is sometimes not the one executed, which would put label noise into both models.
 - **Max-pool downscaling.** Area-averaging 210×160 → 64×64 turns the ball into one dim pixel that a reconstruction loss ignores. Max-pooling keeps it bright.
+- **Foreground-weighted tokenizer loss.** A first run with plain L1 reached 28 dB PSNR while using 15 of 512 codes and drawing no ball or paddle at all: those objects cover under 1% of the pixels. The loss now weights pixels that differ from the static background (the median frame) 50× more.
 - **Random policy with held actions** (1–8 steps), so the data has sustained paddle movement rather than jitter.
 - **Ambiguous actions are expected.** In Breakout, FIRE only matters when no ball is in play, so FIRE and NOOP usually produce identical frames, and LEFT at the left wall equals NOOP. The IDM confusion matrix (`runs/idm_eval.json`) shows this; it is a property of the game, not an IDM bug.
 - **Cosine-similarity VQ codebook** (unit-norm codes and latents) to keep codebook usage high without extra tricks.

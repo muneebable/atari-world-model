@@ -19,7 +19,18 @@ import numpy as np
 import torch
 from PIL import Image
 
-from wm.common import autocast, device, load, psnr, seed_all, to_float, to_uint8
+from wm.common import (
+    autocast,
+    device,
+    foreground_mask,
+    load,
+    masked_psnr,
+    psnr,
+    seed_all,
+    static_background,
+    to_float,
+    to_uint8,
+)
 from wm.data import Split, action_names
 from wm.dynamics import WorldModel
 from wm.idm import CTX, IDM
@@ -89,6 +100,10 @@ def main():
     copy_last = real[:, C - 1 : C].expand_as(future)
 
     per_step = lambda x: [round(float(v), 2) for v in psnr(x, future).mean(0)]
+    background = static_background(val.frames, dev)
+    foreground = lambda x: masked_psnr(
+        x, future, foreground_mask(x, background) | foreground_mask(future, background)
+    )
     report = {
         "dynamics": a.dynamics,
         "windows": len(starts),
@@ -103,6 +118,11 @@ def main():
             "world_model": float(psnr(imagined, future).mean()),
             "copy_last_frame_baseline": float(psnr(copy_last, future).mean()),
             "tokenizer_upper_bound": float(psnr(recon, future).mean()),
+        },
+        "foreground_psnr_db_mean": {
+            "world_model": foreground(imagined),
+            "copy_last_frame_baseline": foreground(copy_last),
+            "tokenizer_upper_bound": foreground(recon),
         },
         "action_consistency": {
             "idm_on_imagined_video": idm_accuracy(idm, torch.cat([real[:, :C], imagined], 1), actions, C - 1),

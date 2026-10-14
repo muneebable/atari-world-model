@@ -12,9 +12,27 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from PIL import Image
 
-from wm.common import autocast, device, load, psnr, save, seed_all, to_float, train_loop
+from wm.common import (
+    autocast,
+    device,
+    foreground_mask,
+    load,
+    masked_psnr,
+    psnr,
+    save,
+    seed_all,
+    static_background,
+    to_float,
+    to_uint8,
+    train_loop,
+)
 from wm.data import Split
+
+# NOTE: moving objects (ball, paddle) cover <1% of pixels; unweighted L1 lets the tokenizer drop them entirely
+# and still score ~28 dB. Weighting them up makes them a sizeable share of the loss.
+FOREGROUND_WEIGHT = 50.0
 
 
 class Res(nn.Module):
@@ -77,13 +95,29 @@ class Tokenizer(nn.Module):
 
 
 @torch.no_grad()
-def evaluate(model, split, dev, n=1024, seed=0):
+def evaluate(model, split, background, dev, n=1024, seed=0):
     i = np.sort(np.random.default_rng(seed).choice(len(split), min(n, len(split)), replace=False))
     x = to_float(split.frames[i], dev)
     with autocast(dev):
-        recon = model.decode(model.encode(x)).float()
-    used = len(np.unique(model.encode(x).cpu().numpy()))
-    return {"val_psnr_db": float(psnr(recon, x).mean()), "codes_used_in_sample": used}
+        recon = model.decode(model.encode(x)).float().clamp(0, 1)
+    moving = foreground_mask(x, background) | foreground_mask(recon, background)
+    return {
+        "val_psnr_db": float(psnr(recon, x).mean()),
+        "val_foreground_psnr_db": masked_psnr(recon, x, moving),
+        "codes_used_in_sample": len(np.unique(model.encode(x).cpu().numpy())),
+    }
+
+
+@torch.no_grad()
+def save_reconstructions(model, split, path, n=8, scale=4):
+    """PNG with the n val frames that moved most (top row) above their reconstructions (bottom row)."""
+    frames = np.asarray(split.frames)
+    motion = np.abs(np.diff(frames.astype(np.int16), axis=0)).sum((1, 2, 3))
+    picks = np.sort(np.argsort(motion)[-n:] + 1)
+    real = frames[picks]
+    recon = to_uint8(model.decode(model.encode(to_float(real, next(model.parameters()).device))))
+    grid = np.concatenate([np.concatenate(list(real), 1), np.concatenate(list(recon), 1)], 0)
+    Image.fromarray(grid.repeat(scale, 0).repeat(scale, 1)).save(path)
 
 
 def train(a):
@@ -93,16 +127,20 @@ def train(a):
     rng = np.random.default_rng(a.seed)
     cfg = {"n_codes": a.n_codes, "dim": a.dim, "ch": tuple(a.ch)}
     model = Tokenizer(**cfg).to(dev)
+    background = static_background(train_split.frames, dev)
 
     def loss_fn(step):
         x = to_float(train_split.frames[np.sort(rng.choice(len(train_split), a.batch))], dev)
         recon, _, vq_loss = model(x)
-        return F.l1_loss(recon.float(), x) + vq_loss
+        weights = 1 + FOREGROUND_WEIGHT * foreground_mask(x, background)
+        l1 = (weights * (recon.float() - x).abs()).sum() / (weights.sum() * x.shape[1])
+        return l1 + vq_loss
 
     train_loop(model, loss_fn, a.steps, a.lr, dev)
     os.makedirs(a.out, exist_ok=True)
     save(os.path.join(a.out, "tokenizer.pt"), model, cfg)
-    report = evaluate(model, val_split, dev)
+    report = evaluate(model, val_split, background, dev)
+    save_reconstructions(model, val_split, os.path.join(a.out, "tokenizer_recon.png"))
     with open(os.path.join(a.out, "tokenizer_eval.json"), "w") as f:
         json.dump(report, f, indent=2)
     print(report)
