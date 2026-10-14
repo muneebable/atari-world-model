@@ -1,0 +1,25 @@
+[project]
+name = "atari-world-model"
+version = "0.1.0"
+description = "Inverse dynamics model and action-conditioned world model trained on Atari gameplay"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.3",
+    "numpy",
+    "gymnasium>=1.0",
+    "ale-py>=0.9",
+    "pillow",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["wm"]
+
+[tool.black]
+line-length = 110
