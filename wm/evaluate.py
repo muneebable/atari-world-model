@@ -37,6 +37,7 @@ from wm.idm import CTX, IDM
 from wm.tokenizer import Tokenizer
 
 
+@torch.no_grad()
 def decode(tok, tokens, grid_hw):
     """tokens (B, T, tpf) -> images (B, T, 3, H, W)."""
     B, T, _ = tokens.shape
